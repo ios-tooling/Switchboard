@@ -37,6 +37,9 @@ public struct SwitchboardEvent: OptionSet, Sendable {
 	/// A significant time change — midnight/day rollover or timezone shift.
 	public static let timeChange = SwitchboardEvent(rawValue: 1 << 7)
 
+	/// Every event.
+	public static let all: SwitchboardEvent = [.launch, .resume, .willEnterForeground, .background, .terminate, .memoryWarning, .tick, .timeChange]
+
 	/// System events paired with the platform notification that drives them. `.launch`/`.tick`
 	/// have no notification; `.timeChange` is observed separately by ``Switchboard``.
 	static var notificationMappings: [(event: SwitchboardEvent, name: Notification.Name)] {
@@ -58,5 +61,20 @@ public struct SwitchboardEvent: OptionSet, Sendable {
 			}
 		#endif
 		return mappings
+	}
+}
+
+extension SwitchboardEvent: CustomStringConvertible {
+	public var description: String {
+		var names: [String] = []
+		if contains(.launch) { names.append("launch") }
+		if contains(.resume) { names.append("resume") }
+		if contains(.willEnterForeground) { names.append("willEnterForeground") }
+		if contains(.background) { names.append("background") }
+		if contains(.terminate) { names.append("terminate") }
+		if contains(.memoryWarning) { names.append("memoryWarning") }
+		if contains(.tick) { names.append("tick") }
+		if contains(.timeChange) { names.append("timeChange") }
+		return names.isEmpty ? "none" : names.joined(separator: ",")
 	}
 }

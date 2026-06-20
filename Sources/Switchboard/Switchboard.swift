@@ -57,6 +57,9 @@ import Foundation
 	// System-state observation (see Switchboard+SystemStates): the reachability monitor + a guard.
 	var systemStatesObserved = false
 	var pathMonitor: AnyObject?
+	// Optional debug logging config (see Switchboard+Logging).
+	var loggedEvents: SwitchboardEvent = []
+	var loggedStates: [SwitchboardState] = []
 
 	private static let tickInterval: TimeInterval = 15 * 60
 
@@ -69,6 +72,7 @@ import Foundation
 	public func setState(_ state: SwitchboardState, active: Bool) {
 		let changed = active ? states.insert(state).inserted : (states.remove(state) != nil)
 		guard changed else { return }
+		logStateChangeIfNeeded(state, active: active)
 
 		let clients = entries.compactMap(\.client)
 		guard !clients.isEmpty else { return }
@@ -138,6 +142,8 @@ import Foundation
 	}
 
 	private func dispatch(_ events: SwitchboardEvent) {
+		logEventIfNeeded(events)
+
 		// The tick timer runs foreground-only: launch/resume start it, background stops it.
 		if events.contains(.launch) || events.contains(.resume) { startTimer() }
 		if events.contains(.background) { stopTimer() }
