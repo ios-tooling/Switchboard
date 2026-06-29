@@ -142,6 +142,9 @@ import Foundation
 	}
 
 	private func dispatch(_ events: SwitchboardEvent) {
+		var events = events
+		// `.resumeDaily` is derived: it rides along with the first `.resume` of each local day.
+		if events.contains(.resume), shouldFireResumeDailyAndMark() { events.insert(.resumeDaily) }
 		logEventIfNeeded(events)
 
 		// The tick timer runs foreground-only: launch/resume start it, background stops it.
@@ -158,6 +161,7 @@ import Foundation
 	private static func deliver(_ events: SwitchboardEvent, to client: SwitchboardClient) async {
 		if events.contains(.launch) { await client.onLaunch() }
 		if events.contains(.resume) { await client.onResume() }
+		if events.contains(.resumeDaily) { await client.onResumeDaily() }
 		if events.contains(.willEnterForeground) { await client.onWillEnterForeground() }
 		if events.contains(.background) { await client.onBackground() }
 		if events.contains(.terminate) { await client.onTerminate() }

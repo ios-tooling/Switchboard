@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import Switchboard
 
 @MainActor private final class RecordingClient: SwitchboardClient {
@@ -40,6 +41,20 @@ import Testing
 
 		Switchboard.instance.launched()
 		#expect(await eventually { client.launches == 1 })
+	}
+
+	@Test func resumeDailyFiresOncePerDay() {
+		let key = "com.switchboard.lastResumeDaily"
+		let defaults = UserDefaults.standard
+		let saved = defaults.object(forKey: key) as? Date
+		defer { defaults.set(saved, forKey: key) }
+
+		defaults.removeObject(forKey: key)
+		#expect(Switchboard.instance.shouldFireResumeDailyAndMark())   // first ever → fires
+		#expect(!Switchboard.instance.shouldFireResumeDailyAndMark())  // same day → suppressed
+
+		defaults.set(Calendar.current.date(byAdding: .day, value: -1, to: Date()), forKey: key)
+		#expect(Switchboard.instance.shouldFireResumeDailyAndMark())   // yesterday → fires again
 	}
 
 	@Test func stateChangeFiresOnlyOnRealChange() async {

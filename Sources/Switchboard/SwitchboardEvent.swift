@@ -24,6 +24,8 @@ public struct SwitchboardEvent: OptionSet, Sendable {
 	public static let launch = SwitchboardEvent(rawValue: 1 << 0)
 	/// The app became active (returned to the foreground).
 	public static let resume = SwitchboardEvent(rawValue: 1 << 1)
+	/// Fired alongside `.resume`, but only on the first resume of each local calendar day.
+	public static let resumeDaily = SwitchboardEvent(rawValue: 1 << 8)
 	/// The app is about to enter the foreground (before it becomes active).
 	public static let willEnterForeground = SwitchboardEvent(rawValue: 1 << 2)
 	/// The app entered the background (resigned active on macOS).
@@ -38,7 +40,7 @@ public struct SwitchboardEvent: OptionSet, Sendable {
 	public static let timeChange = SwitchboardEvent(rawValue: 1 << 7)
 
 	/// Every event.
-	public static let all: SwitchboardEvent = [.launch, .resume, .willEnterForeground, .background, .terminate, .memoryWarning, .tick, .timeChange]
+	public static let all: SwitchboardEvent = [.launch, .resume, .resumeDaily, .willEnterForeground, .background, .terminate, .memoryWarning, .tick, .timeChange]
 
 	/// System events paired with the platform notification that drives them. `.launch`/`.tick`
 	/// have no notification; `.timeChange` is observed separately by ``Switchboard``.
@@ -69,6 +71,7 @@ extension SwitchboardEvent: CustomStringConvertible {
 		var names: [String] = []
 		if contains(.launch) { names.append("launch") }
 		if contains(.resume) { names.append("resume") }
+		if contains(.resumeDaily) { names.append("resumeDaily") }
 		if contains(.willEnterForeground) { names.append("willEnterForeground") }
 		if contains(.background) { names.append("background") }
 		if contains(.terminate) { names.append("terminate") }

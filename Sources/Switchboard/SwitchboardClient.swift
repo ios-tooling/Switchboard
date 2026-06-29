@@ -16,6 +16,9 @@ import Foundation
 public protocol SwitchboardClient: AnyObject, Sendable {
 	func onLaunch() async
 	func onResume() async
+
+	/// Called alongside ``onResume()``, but only on the first resume of each local calendar day.
+	func onResumeDaily() async
 	func onWillEnterForeground() async
 	func onBackground() async
 	func onTerminate() async
@@ -33,6 +36,7 @@ public protocol SwitchboardClient: AnyObject, Sendable {
 public extension SwitchboardClient {
 	func onLaunch() async { }
 	func onResume() async { }
+	func onResumeDaily() async { }
 	func onWillEnterForeground() async { }
 	func onBackground() async { }
 	func onTerminate() async { }
