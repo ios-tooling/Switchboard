@@ -60,6 +60,13 @@ import Foundation
 	// Optional debug logging config (see Switchboard+Logging).
 	var loggedEvents: SwitchboardEvent = []
 	var loggedStates: [SwitchboardState] = []
+	/// If set, `.resumeDaily` is held until the local hour reaches it (e.g. `8` → not before
+	/// 8am). Before then it doesn't fire and doesn't count as the day's resume, so a later
+	/// resume — or the foreground tick once the hour passes — still delivers it that day.
+	/// `nil` (the default) fires on the first resume of each local day.
+	public var resumeDailyAfterHour: Int?
+	// Backing store for `.resumeDaily` bookkeeping; overridable in tests.
+	var resumeDailyDefaults: UserDefaults = .standard
 
 	private static let tickInterval: TimeInterval = 15 * 60
 
@@ -143,8 +150,9 @@ import Foundation
 
 	private func dispatch(_ events: SwitchboardEvent) {
 		var events = events
-		// `.resumeDaily` is derived: it rides along with the first `.resume` of each local day.
-		if events.contains(.resume), shouldFireResumeDailyAndMark() { events.insert(.resumeDaily) }
+		// `.resumeDaily` rides the first qualifying resume — or foreground tick — of each local
+		// day; `resumeDailyAfterHour` (if set) holds it until that hour.
+		if events.contains(.resume) || events.contains(.tick), shouldFireResumeDailyAndMark() { events.insert(.resumeDaily) }
 		logEventIfNeeded(events)
 
 		// The tick timer runs foreground-only: launch/resume start it, background stops it.

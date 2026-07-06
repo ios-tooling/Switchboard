@@ -43,18 +43,47 @@ import Foundation
 		#expect(await eventually { client.launches == 1 })
 	}
 
+	/// Point the board's resume-daily store at a scratch suite for the duration of a test, and
+	/// restore its `resumeDailyAfterHour`.
+	private func withScratchBoard(_ suiteName: String, _ body: (Switchboard) -> Void) {
+		let board = Switchboard.instance
+		let previousDefaults = board.resumeDailyDefaults
+		let previousHour = board.resumeDailyAfterHour
+		let suite = UserDefaults(suiteName: suiteName)!
+		suite.removePersistentDomain(forName: suiteName)
+		board.resumeDailyDefaults = suite
+		defer {
+			board.resumeDailyDefaults = previousDefaults
+			board.resumeDailyAfterHour = previousHour
+			suite.removePersistentDomain(forName: suiteName)
+		}
+		body(board)
+	}
+
 	@Test func resumeDailyFiresOncePerDay() {
-		let key = "com.switchboard.lastResumeDaily"
-		let defaults = UserDefaults.standard
-		let saved = defaults.object(forKey: key) as? Date
-		defer { defaults.set(saved, forKey: key) }
+		withScratchBoard("switchboard.test.oncePerDay") { board in
+			board.resumeDailyAfterHour = nil
+			#expect(board.shouldFireResumeDailyAndMark())    // first → fires
+			#expect(!board.shouldFireResumeDailyAndMark())   // same day → suppressed
 
-		defaults.removeObject(forKey: key)
-		#expect(Switchboard.instance.shouldFireResumeDailyAndMark())   // first ever → fires
-		#expect(!Switchboard.instance.shouldFireResumeDailyAndMark())  // same day → suppressed
+			board.resumeDailyDefaults.set(Calendar.current.date(byAdding: .day, value: -1, to: Date()),
+			                              forKey: Switchboard.lastResumeDailyKey)
+			#expect(board.shouldFireResumeDailyAndMark())    // yesterday → fires again
+		}
+	}
 
-		defaults.set(Calendar.current.date(byAdding: .day, value: -1, to: Date()), forKey: key)
-		#expect(Switchboard.instance.shouldFireResumeDailyAndMark())   // yesterday → fires again
+	@Test func resumeDailyAfterHourHoldsUntilHourWithoutMarking() {
+		withScratchBoard("switchboard.test.afterHour") { board in
+			board.resumeDailyAfterHour = 8
+			let cal = Calendar.current
+			let midnight = cal.startOfDay(for: Date())
+			let at7 = cal.date(byAdding: .hour, value: 7, to: midnight)!
+			let at9 = cal.date(byAdding: .hour, value: 9, to: midnight)!
+
+			#expect(!board.shouldFireResumeDailyAndMark(now: at7))  // before 8 → no fire, no mark
+			#expect(board.shouldFireResumeDailyAndMark(now: at9))   // at/after 8 → fires, marks
+			#expect(!board.shouldFireResumeDailyAndMark(now: at9))  // already fired today → suppressed
+		}
 	}
 
 	@Test func stateChangeFiresOnlyOnRealChange() async {

@@ -17,7 +17,9 @@ public protocol SwitchboardClient: AnyObject, Sendable {
 	func onLaunch() async
 	func onResume() async
 
-	/// Called alongside ``onResume()``, but only on the first resume of each local calendar day.
+	/// Fired at most once per local calendar day — on the first qualifying resume (or the
+	/// foreground tick that crosses the boundary). Held until ``Switchboard/resumeDailyAfterHour``
+	/// (if set) has passed.
 	func onResumeDaily() async
 	func onWillEnterForeground() async
 	func onBackground() async

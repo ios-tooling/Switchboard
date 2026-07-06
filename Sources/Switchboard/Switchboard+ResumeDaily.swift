@@ -8,18 +8,19 @@
 import Foundation
 
 extension Switchboard {
-	private static let lastResumeDailyKey = "com.switchboard.lastResumeDaily"
+	static let lastResumeDailyKey = "com.switchboard.lastResumeDaily"
 
-	/// Returns `true` if no `.resumeDaily` has fired yet today (local calendar), marking now as
-	/// the latest fire. Returns `false` — without updating — if one already fired today.
-	func shouldFireResumeDailyAndMark() -> Bool {
-		let defaults = UserDefaults.standard
-		let now = Date()
-		if let last = defaults.object(forKey: Self.lastResumeDailyKey) as? Date,
+	/// Whether `.resumeDaily` should fire now, marking it if so. Fires at most once per local
+	/// day. When ``resumeDailyAfterHour`` is set, it only fires once the local hour has reached
+	/// it — before then it returns `false` *without* marking, so a later resume or foreground
+	/// tick still delivers it that day (and a pre-hour open doesn't count as the day's resume).
+	func shouldFireResumeDailyAndMark(now: Date = Date()) -> Bool {
+		if let afterHour = resumeDailyAfterHour, Calendar.current.component(.hour, from: now) < afterHour { return false }
+		if let last = resumeDailyDefaults.object(forKey: Self.lastResumeDailyKey) as? Date,
 			Calendar.current.isDate(last, inSameDayAs: now) {
 			return false
 		}
-		defaults.set(now, forKey: Self.lastResumeDailyKey)
+		resumeDailyDefaults.set(now, forKey: Self.lastResumeDailyKey)
 		return true
 	}
 }
