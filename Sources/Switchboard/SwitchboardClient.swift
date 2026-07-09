@@ -15,6 +15,11 @@ import Foundation
 /// the main actor; an `actor` client's run on its own executor.
 public protocol SwitchboardClient: AnyObject, Sendable {
 	func onLaunch() async
+
+	/// Fired just before ``onLaunch()`` the very first time the app launches on this device.
+	func onFirstLaunch() async
+	/// Fired just before ``onLaunch()`` on the first launch after the app's version string changed.
+	func onLaunchNewVersion() async
 	func onResume() async
 
 	/// Fired at most once per local calendar day — on the first qualifying resume (or the
@@ -37,6 +42,8 @@ public protocol SwitchboardClient: AnyObject, Sendable {
 
 public extension SwitchboardClient {
 	func onLaunch() async { }
+	func onFirstLaunch() async { }
+	func onLaunchNewVersion() async { }
 	func onResume() async { }
 	func onResumeDaily() async { }
 	func onWillEnterForeground() async { }

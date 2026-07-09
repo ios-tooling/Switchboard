@@ -62,6 +62,8 @@ own executor — so both conform without ceremony.
 | Event | Fires when |
 |---|---|
 | `.launch` | you call `board.launched()` |
+| `.firstLaunch` | the app launches for the first time on this device (just before `.launch`) |
+| `.launchNewVersion` | the first launch after the app's version string changes (just before `.launch`) |
 | `.resume` | the app becomes active |
 | `.willEnterForeground` | the app is about to enter the foreground |
 | `.background` | the app enters the background |

@@ -43,17 +43,20 @@ import Foundation
 		#expect(await eventually { client.launches == 1 })
 	}
 
-	/// Point the board's resume-daily store at a scratch suite for the duration of a test, and
-	/// restore its `resumeDailyAfterHour`.
+	/// Point the board's resume-daily and launch-version stores at a scratch suite for the
+	/// duration of a test, and restore its `resumeDailyAfterHour`.
 	private func withScratchBoard(_ suiteName: String, _ body: (Switchboard) -> Void) {
 		let board = Switchboard.instance
 		let previousDefaults = board.resumeDailyDefaults
+		let previousLaunchDefaults = board.launchVersionDefaults
 		let previousHour = board.resumeDailyAfterHour
 		let suite = UserDefaults(suiteName: suiteName)!
 		suite.removePersistentDomain(forName: suiteName)
 		board.resumeDailyDefaults = suite
+		board.launchVersionDefaults = suite
 		defer {
 			board.resumeDailyDefaults = previousDefaults
+			board.launchVersionDefaults = previousLaunchDefaults
 			board.resumeDailyAfterHour = previousHour
 			suite.removePersistentDomain(forName: suiteName)
 		}
@@ -83,6 +86,28 @@ import Foundation
 			#expect(!board.shouldFireResumeDailyAndMark(now: at7))  // before 8 → no fire, no mark
 			#expect(board.shouldFireResumeDailyAndMark(now: at9))   // at/after 8 → fires, marks
 			#expect(!board.shouldFireResumeDailyAndMark(now: at9))  // already fired today → suppressed
+		}
+	}
+
+	@Test func firstLaunchFiresWhenNoVersionStored() {
+		withScratchBoard("switchboard.test.firstLaunch") { board in
+			#expect(board.launchVersionEventAndMark(currentVersion: "1.0") == .firstLaunch)
+			#expect(board.launchVersionEventAndMark(currentVersion: "1.0") == nil)   // recorded → unchanged
+		}
+	}
+
+	@Test func launchNewVersionFiresWhenVersionChanges() {
+		withScratchBoard("switchboard.test.newVersion") { board in
+			#expect(board.launchVersionEventAndMark(currentVersion: "1.0") == .firstLaunch)       // records 1.0
+			#expect(board.launchVersionEventAndMark(currentVersion: "1.1") == .launchNewVersion)  // changed
+			#expect(board.launchVersionEventAndMark(currentVersion: "1.1") == nil)                // unchanged again
+		}
+	}
+
+	@Test func launchVersionDoesNotFireWithoutAVersion() {
+		withScratchBoard("switchboard.test.noVersion") { board in
+			#expect(board.launchVersionEventAndMark(currentVersion: nil) == nil)
+			#expect(board.launchVersionEventAndMark(currentVersion: "1.0") == .firstLaunch)  // nothing was recorded
 		}
 	}
 

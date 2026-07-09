@@ -22,6 +22,13 @@ public struct SwitchboardEvent: OptionSet, Sendable {
 
 	/// The app has launched. Fired via ``Switchboard/launched()`` once clients are registered.
 	public static let launch = SwitchboardEvent(rawValue: 1 << 0)
+	/// The very first launch on this device — fired just before `.launch`. Detected when no app
+	/// version has been recorded yet.
+	public static let firstLaunch = SwitchboardEvent(rawValue: 1 << 9)
+	/// The first launch after the app's version changed — fired just before `.launch`. Compares
+	/// the bundle's short version string (`CFBundleShortVersionString`, not the build number)
+	/// against the last recorded launch. Never fires on a first install (that's `.firstLaunch`).
+	public static let launchNewVersion = SwitchboardEvent(rawValue: 1 << 10)
 	/// The app became active (returned to the foreground).
 	public static let resume = SwitchboardEvent(rawValue: 1 << 1)
 	/// Fired alongside `.resume`, but only on the first resume of each local calendar day.
@@ -40,7 +47,7 @@ public struct SwitchboardEvent: OptionSet, Sendable {
 	public static let timeChange = SwitchboardEvent(rawValue: 1 << 7)
 
 	/// Every event.
-	public static let all: SwitchboardEvent = [.launch, .resume, .resumeDaily, .willEnterForeground, .background, .terminate, .memoryWarning, .tick, .timeChange]
+	public static let all: SwitchboardEvent = [.launch, .firstLaunch, .launchNewVersion, .resume, .resumeDaily, .willEnterForeground, .background, .terminate, .memoryWarning, .tick, .timeChange]
 
 	/// System events paired with the platform notification that drives them. `.launch`/`.tick`
 	/// have no notification; `.timeChange` is observed separately by ``Switchboard``.
@@ -70,6 +77,8 @@ extension SwitchboardEvent: CustomStringConvertible {
 	public var description: String {
 		var names: [String] = []
 		if contains(.launch) { names.append("launch") }
+		if contains(.firstLaunch) { names.append("firstLaunch") }
+		if contains(.launchNewVersion) { names.append("launchNewVersion") }
 		if contains(.resume) { names.append("resume") }
 		if contains(.resumeDaily) { names.append("resumeDaily") }
 		if contains(.willEnterForeground) { names.append("willEnterForeground") }

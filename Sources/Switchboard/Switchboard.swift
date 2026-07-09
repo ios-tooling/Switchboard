@@ -67,6 +67,8 @@ import Foundation
 	public var resumeDailyAfterHour: Int?
 	// Backing store for `.resumeDaily` bookkeeping; overridable in tests.
 	var resumeDailyDefaults: UserDefaults = .standard
+	// Backing store for `.firstLaunch`/`.launchNewVersion` bookkeeping; overridable in tests.
+	var launchVersionDefaults: UserDefaults = .standard
 
 	private static let tickInterval: TimeInterval = 15 * 60
 
@@ -103,8 +105,9 @@ import Foundation
 		return registration
 	}
 
-	/// Fire `.launch` to all registered clients, in registration order. Call once at app
-	/// launch, after clients are registered.
+	/// Fire `.launch` to all registered clients, in registration order. Call once at app launch,
+	/// after clients are registered. A device's first-ever launch is preceded by `.firstLaunch`;
+	/// the first launch after the app's version string changes, by `.launchNewVersion`.
 	public func launched() { dispatch(.launch) }
 
 	/// Route an incoming notification to registered clients, in registration order, until one
@@ -150,6 +153,8 @@ import Foundation
 
 	private func dispatch(_ events: SwitchboardEvent) {
 		var events = events
+		// A first-ever launch, or the first launch under a new app version, rides just ahead of `.launch`.
+		if events.contains(.launch), let versionEvent = launchVersionEventAndMark() { events.insert(versionEvent) }
 		// `.resumeDaily` rides the first qualifying resume — or foreground tick — of each local
 		// day; `resumeDailyAfterHour` (if set) holds it until that hour.
 		if events.contains(.resume) || events.contains(.tick), shouldFireResumeDailyAndMark() { events.insert(.resumeDaily) }
@@ -167,6 +172,8 @@ import Foundation
 	}
 
 	private static func deliver(_ events: SwitchboardEvent, to client: SwitchboardClient) async {
+		if events.contains(.firstLaunch) { await client.onFirstLaunch() }
+		if events.contains(.launchNewVersion) { await client.onLaunchNewVersion() }
 		if events.contains(.launch) { await client.onLaunch() }
 		if events.contains(.resume) { await client.onResume() }
 		if events.contains(.resumeDaily) { await client.onResumeDaily() }
