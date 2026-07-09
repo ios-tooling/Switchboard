@@ -5,10 +5,14 @@ import Foundation
 @MainActor private final class RecordingClient: SwitchboardClient {
 	var launches = 0
 	var ticks = 0
+	var signIns = 0
+	var signOuts = 0
 	var stateChanges: [(state: SwitchboardState, isActive: Bool)] = []
 
 	func onLaunch() async { launches += 1 }
 	func onTick() async { ticks += 1 }
+	func onSignIn() async { signIns += 1 }
+	func onSignOut() async { signOuts += 1 }
 	func onStateChange(_ state: SwitchboardState, isActive: Bool) async { stateChanges.append((state, isActive)) }
 }
 
@@ -109,6 +113,36 @@ import Foundation
 			#expect(board.launchVersionEventAndMark(currentVersion: nil) == nil)
 			#expect(board.launchVersionEventAndMark(currentVersion: "1.0") == .firstLaunch)  // nothing was recorded
 		}
+	}
+
+	@Test func signInOutCallbacksTrackSignedInState() async {
+		let client = RecordingClient()
+		let board = Switchboard.instance
+		board.setState(.isSignedIn, active: false)   // known baseline, before registering
+		let registration = board.register(client)
+		defer { registration.cancel(); board.setState(.isSignedIn, active: false) }
+
+		board.setState(.isSignedIn, active: true)
+		#expect(await eventually { client.signIns == 1 })
+		#expect(client.signOuts == 0)
+
+		board.setState(.isSignedIn, active: false)
+		#expect(await eventually { client.signOuts == 1 })
+		#expect(client.signIns == 1)
+	}
+
+	@Test func signInOutIgnoreOtherStates() async {
+		let client = RecordingClient()
+		let board = Switchboard.instance
+		let key = SwitchboardState(rawValue: "test.notSignedIn")
+		board.setState(key, active: false)
+		let registration = board.register(client)
+		defer { registration.cancel(); board.setState(key, active: false) }
+
+		board.setState(key, active: true)
+		#expect(await eventually { client.stateChanges.contains { $0.state == key && $0.isActive } })
+		#expect(client.signIns == 0)
+		#expect(client.signOuts == 0)
 	}
 
 	@Test func stateChangeFiresOnlyOnRealChange() async {

@@ -34,6 +34,13 @@ public protocol SwitchboardClient: AnyObject, Sendable {
 	func onTimeChange() async
 	func onStateChange(_ state: SwitchboardState, isActive: Bool) async
 
+	/// Fired when `.isSignedIn` becomes active — a convenience layered on
+	/// `onStateChange(.isSignedIn, isActive: true)`, delivered just after it.
+	func onSignIn() async
+	/// Fired when `.isSignedIn` becomes inactive — a convenience layered on
+	/// `onStateChange(.isSignedIn, isActive: false)`, delivered just after it.
+	func onSignOut() async
+
 	/// Handle an incoming route (notification, universal link, activity, shortcut, …). Return
 	/// `true` to claim it and stop routing — clients are offered it in registration order.
 	/// Defaults to not handling it.
@@ -53,5 +60,7 @@ public extension SwitchboardClient {
 	func onTick() async { }
 	func onTimeChange() async { }
 	func onStateChange(_ state: SwitchboardState, isActive: Bool) async { }
+	func onSignIn() async { }
+	func onSignOut() async { }
 	func route(_ route: SwitchboardRoute) async -> Bool { false }
 }

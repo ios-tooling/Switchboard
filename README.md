@@ -92,6 +92,17 @@ if board.has(state: .isOnline) { … }        // query at any time
 `setState` only notifies when the value actually changes. Clients react in
 `onStateChange(_ state:, isActive:)`.
 
+The built-in `.isSignedIn` state also has convenience callbacks — implement `onSignIn()` /
+`onSignOut()` instead of matching on `.isSignedIn` in `onStateChange`. They fire just after the
+state change:
+
+```swift
+func onSignIn() async  { await loadAccount() }
+func onSignOut() async { await clearAccount() }
+
+board.setState(.isSignedIn, active: true)   // → onStateChange(.isSignedIn, true), then onSignIn()
+```
+
 ### Device conditions
 
 Call `observeSystemStates()` once and Switchboard keeps these in sync for you:

@@ -86,7 +86,7 @@ import Foundation
 		let clients = entries.compactMap(\.client)
 		guard !clients.isEmpty else { return }
 		Task {
-			for client in clients { await client.onStateChange(state, isActive: active) }
+			for client in clients { await Switchboard.deliver(state, active: active, to: client) }
 		}
 	}
 
@@ -183,6 +183,13 @@ import Foundation
 		if events.contains(.memoryWarning) { await client.onMemoryWarning() }
 		if events.contains(.tick) { await client.onTick() }
 		if events.contains(.timeChange) { await client.onTimeChange() }
+	}
+
+	private static func deliver(_ state: SwitchboardState, active: Bool, to client: SwitchboardClient) async {
+		await client.onStateChange(state, isActive: active)
+		if state == .isSignedIn {
+			if active { await client.onSignIn() } else { await client.onSignOut() }
+		}
 	}
 
 	// MARK: - Tick timer (foreground only)
