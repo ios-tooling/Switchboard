@@ -49,6 +49,10 @@ import Foundation
 
 	private var entries: [Entry] = []
 	private var observingSystemEvents = false
+	// Route buffering (see `route(_:)`); internal so tests can reset between runs.
+	var hasLaunched = false
+	var pendingRoutes: [SwitchboardRoute] = []
+	private static let pendingRouteLimit = 8
 	var tokens: [any NSObjectProtocol] = []
 	private var states: Set<SwitchboardState> = []
 	private var tickTask: Task<Void, Never>?
@@ -108,20 +112,46 @@ import Foundation
 	/// Fire `.launch` to all registered clients, in registration order. Call once at app launch,
 	/// after clients are registered. A device's first-ever launch is preceded by `.firstLaunch`;
 	/// the first launch after the app's version string changes, by `.launchNewVersion`.
-	public func launched() { dispatch(.launch) }
+	/// Any user-intent routes that arrived earlier are replayed, in order, once launch dispatch
+	/// begins (route execution may interleave with launch handlers — claimers should tolerate
+	/// warming state).
+	public func launched() {
+		hasLaunched = true
+		dispatch(.launch)
+		replayPendingRoutes()
+	}
 
 	/// Route an incoming notification to registered clients, in registration order, until one
 	/// claims it (returns `true`). Returns whether any client handled it.
+	///
+	/// A user-intent route (a tap, link, activity — see ``SwitchboardRoute/Origin/isUserIntent``)
+	/// arriving before ``launched()`` is buffered and replayed once launch happens, so cold-start
+	/// deep links don't race client registration; buffered routes return `false` here. Silent
+	/// notification routes are never buffered — they dispatch to whoever is registered right now.
 	///
 	/// Forward notifications here from your `UNUserNotificationCenterDelegate` / app delegate —
 	/// or opt Switchboard in as the notification-center delegate with
 	/// ``useAsNotificationDelegate(foregroundPresentation:)``.
 	@discardableResult
 	public func route(_ route: SwitchboardRoute) async -> Bool {
+		if !hasLaunched, route.isUserIntent {
+			pendingRoutes.append(route)
+			if pendingRoutes.count > Self.pendingRouteLimit { pendingRoutes.removeFirst(pendingRoutes.count - Self.pendingRouteLimit) }
+			return false
+		}
 		for client in entries.compactMap(\.client) {
 			if await client.route(route) { return true }
 		}
 		return false
+	}
+
+	private func replayPendingRoutes() {
+		guard !pendingRoutes.isEmpty else { return }
+		let pending = pendingRoutes
+		pendingRoutes = []
+		Task {
+			for route in pending { await self.route(route) }
+		}
 	}
 
 	/// Stop notifying the client associated with `registration`.

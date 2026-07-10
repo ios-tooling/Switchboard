@@ -28,6 +28,16 @@ public struct SwitchboardRoute: @unchecked Sendable {
 		case widget
 	}
 
+	/// Whether this route expresses direct user intent — a tap, opened link, activity, or
+	/// widget/shortcut — as opposed to a silent notification delivery. User-intent routes are
+	/// buffered when they arrive before ``Switchboard/launched()``.
+	public var isUserIntent: Bool {
+		switch origin {
+		case .notification(.background), .notification(.foreground): false
+		default: true
+		}
+	}
+
 	/// The deep-link URL this route carries, if any.
 	public let url: URL?
 	/// The raw payload (a notification's userInfo, an activity's userInfo, …).

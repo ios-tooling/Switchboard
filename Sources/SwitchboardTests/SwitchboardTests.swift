@@ -16,6 +16,15 @@ import Foundation
 	func onStateChange(_ state: SwitchboardState, isActive: Bool) async { stateChanges.append((state, isActive)) }
 }
 
+
+@MainActor private final class RoutingClient: SwitchboardClient {
+	var routedURLs: [URL?] = []
+	func route(_ route: SwitchboardRoute) async -> Bool {
+		routedURLs.append(route.url)
+		return true
+	}
+}
+
 @MainActor private func eventually(_ condition: @MainActor () -> Bool) async -> Bool {
 	for _ in 0..<200 {
 		if condition() { return true }
@@ -162,5 +171,62 @@ import Foundation
 		board.setState(key, active: true)   // no-op: already present, must not fire again
 		try? await Task.sleep(for: .milliseconds(50))
 		#expect(client.stateChanges.count == baseline + 1)
+	}
+
+	/// Run `body` with the board in a pre-launch state, restoring launch state afterward.
+	private func withUnlaunchedBoard(_ body: (Switchboard) async -> Void) async {
+		let board = Switchboard.instance
+		let wasLaunched = board.hasLaunched
+		board.hasLaunched = false
+		await body(board)
+		board.pendingRoutes = []
+		board.hasLaunched = wasLaunched
+	}
+
+	@Test func buffersUserIntentRoutesUntilLaunched() async {
+		await withUnlaunchedBoard { board in
+			let client = RoutingClient()
+			let registration = board.register(client)
+			defer { registration.cancel() }
+
+			let first = URL(string: "test://feed/item/1")!
+			let second = URL(string: "test://mood")!
+			#expect(await board.route(.urlScheme(first)) == false)
+			#expect(await board.route(.urlScheme(second)) == false)
+			#expect(client.routedURLs.isEmpty)
+
+			board.launched()
+			#expect(await eventually { client.routedURLs.count == 2 })
+			#expect(client.routedURLs == [first, second])
+		}
+	}
+
+	@Test func silentNotificationsAreNeverBuffered() async {
+		await withUnlaunchedBoard { board in
+			let client = RoutingClient()
+			let registration = board.register(client)
+			defer { registration.cancel() }
+
+			// dispatches immediately to registered clients, even before launch
+			let handled = await board.route(.notification(["aps": ["data": ["url": "test://silent"]]], source: .background))
+			#expect(handled)
+			#expect(client.routedURLs.count == 1)
+			#expect(board.pendingRoutes.isEmpty)
+		}
+	}
+
+	@Test func routesDispatchImmediatelyAfterLaunch() async {
+		let board = Switchboard.instance
+		let wasLaunched = board.hasLaunched
+		board.hasLaunched = true
+		defer { board.hasLaunched = wasLaunched }
+
+		let client = RoutingClient()
+		let registration = board.register(client)
+		defer { registration.cancel() }
+
+		let url = URL(string: "test://immediate")!
+		#expect(await board.route(.universalLink(url)))
+		#expect(client.routedURLs == [url])
 	}
 }
