@@ -75,8 +75,12 @@ import Foundation
 	var launchVersionDefaults: UserDefaults = .standard
 
 	private static let tickInterval: TimeInterval = 15 * 60
+	// The pure scheduling core — event assembly, timer fate, and gating decisions live there.
+	let scheduler = SwitchboardScheduler()
 
-	private init() { }
+	// Apps use `instance`; the internal initializer exists so package tests can construct
+	// isolated boards (inject fresh `resumeDailyDefaults`/`launchVersionDefaults` in tests).
+	init() { }
 
 	// MARK: - State
 
@@ -181,23 +185,27 @@ import Foundation
 		#endif
 	}
 
-	private func dispatch(_ events: SwitchboardEvent) {
-		var events = events
-		// A first-ever launch, or the first launch under a new app version, rides just ahead of `.launch`.
-		if events.contains(.launch), let versionEvent = launchVersionEventAndMark() { events.insert(versionEvent) }
-		// `.resumeDaily` rides the first qualifying resume — or foreground tick — of each local
-		// day; `resumeDailyAfterHour` (if set) holds it until that hour.
-		if events.contains(.resume) || events.contains(.tick), shouldFireResumeDailyAndMark() { events.insert(.resumeDaily) }
-		logEventIfNeeded(events)
+	// The impure shell: gathers the bookkeeping facts (marking them as a side effect), asks the
+	// scheduler for a plan, applies the timer action, and delivers to eligible clients. Internal
+	// so package tests can drive lifecycle events on constructed boards.
+	func dispatch(_ events: SwitchboardEvent) {
+		// The `…AndMark` helpers record bookkeeping, so consult them only when their base
+		// event is present — the scheduler re-applies the riding rules on the pure side.
+		let versionEvent = events.contains(.launch) ? launchVersionEventAndMark() : nil
+		let resumeDailyIsDue = (events.contains(.resume) || events.contains(.tick)) ? shouldFireResumeDailyAndMark() : false
+		let plan = scheduler.plan(for: events, versionEvent: versionEvent, resumeDailyIsDue: resumeDailyIsDue)
+		logEventIfNeeded(plan.events)
 
-		// The tick timer runs foreground-only: launch/resume start it, background stops it.
-		if events.contains(.launch) || events.contains(.resume) { startTimer() }
-		if events.contains(.background) { stopTimer() }
+		switch plan.timerAction {
+		case .start: startTimer()
+		case .stop: stopTimer()
+		case .none: break
+		}
 
-		let clients = entries.compactMap(\.client)
+		let clients = entries.compactMap(\.client).filter { scheduler.isEligible(requirements: $0.requiredStates, active: states) }
 		guard !clients.isEmpty else { return }
 		Task {
-			for client in clients { await Switchboard.deliver(events, to: client) }
+			for client in clients { await Switchboard.deliver(plan.events, to: client) }
 		}
 	}
 

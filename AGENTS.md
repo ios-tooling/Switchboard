@@ -21,7 +21,14 @@ package.
   the two `deliver` overloads — `deliver(_:to:)` (events) and `deliver(_:active:to:)` (state). Owns
   all stored state, including the two bookkeeping stores `resumeDailyDefaults` /
   `launchVersionDefaults` (both `UserDefaults`, overridable in tests) and `resumeDailyAfterHour`.
-- `SwitchboardClient.swift` — the client protocol + **no-op default implementations**.
+- `SwitchboardClient.swift` — the client protocol + **no-op default implementations**. Includes
+  `requiredStates` (default `[]`): states that must all be active for the client to receive
+  lifecycle events; state changes, sign-in/out, and routes are never gated.
+- `SwitchboardScheduler.swift` — the **pure scheduling core**: `plan(for:versionEvent:resumeDailyIsDue:)`
+  (derived-event assembly + tick-timer fate) and `isEligible(requirements:active:)` (the
+  `requiredStates` gate). Owns no state, touches no platform API — this is the test surface for
+  timing/gating rules; `dispatch` is the impure shell that gathers bookkeeping facts and applies
+  the plan.
 - `SwitchboardEvent.swift` — the `OptionSet` of events, `.all`, `notificationMappings`, and
   `CustomStringConvertible` (used by logging).
 - `SwitchboardState.swift` — extensible string-backed state value + built-in constants
@@ -54,6 +61,10 @@ package.
   reintroduce trapping (`fatalError`) defaults.
 - Clients are stored **weakly** and dispatched **sequentially in registration order** (the
   responder chain for `route`, and the loops in both `deliver` overloads).
+- **`requiredStates` gates lifecycle events only.** `onStateChange`/`onSignIn`/`onSignOut` and
+  `route(_:)` are always delivered — a gated client must still be able to hear the sign-in that
+  makes it eligible and the sign-out that tears it down. A client needing finer-grained gating
+  declares no requirements and guards inside its handlers.
 - `.launch` is never auto-fired on register — the app calls `launched()` after all clients are
   registered (preserves order). System events are observed lazily on first `register`.
 - `setState` notifies only on an actual change (`Set.insert(_:).inserted` / `remove(_:) != nil`).

@@ -14,6 +14,14 @@ import Foundation
 /// Each callback runs in the client's own isolation — a `@MainActor` client's handlers run on
 /// the main actor; an `actor` client's run on its own executor.
 public protocol SwitchboardClient: AnyObject, Sendable {
+	/// States that must all be active for this client to receive lifecycle events
+	/// (``onLaunch()``, ``onResume()``, ``onTick()``, ``onTimeChange()``, …). State changes —
+	/// ``onStateChange(_:isActive:)``, ``onSignIn()``, ``onSignOut()`` — and ``route(_:)``
+	/// are always delivered regardless. Defaults to empty (no gating). Declare
+	/// `[.isSignedIn]` on a client whose lifecycle work only makes sense signed in,
+	/// instead of guarding inside each handler.
+	nonisolated var requiredStates: Set<SwitchboardState> { get }
+
 	func onLaunch() async
 
 	/// Fired just before ``onLaunch()`` the very first time the app launches on this device.
@@ -48,6 +56,8 @@ public protocol SwitchboardClient: AnyObject, Sendable {
 }
 
 public extension SwitchboardClient {
+	nonisolated var requiredStates: Set<SwitchboardState> { [] }
+
 	func onLaunch() async { }
 	func onFirstLaunch() async { }
 	func onLaunchNewVersion() async { }
