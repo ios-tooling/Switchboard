@@ -91,6 +91,16 @@ import SwiftUI
 	public func coverBinding<Modal: Hashable & Identifiable & Sendable>(_ type: Modal.Type) -> Binding<Modal?> {
 		Binding(get: { self.cover?.base as? Modal }, set: { self.cover = $0.map(AnyHashable.init) })
 	}
+
+	/// A `Bool` binding reporting whether a modal of `type` is the presented sheet, for child
+	/// APIs that take `isPresented: Binding<Bool>`. Setting it `false` dismisses the sheet only
+	/// while that type is still up, so a sheet that replaced it isn't torn down. Setting it
+	/// `true` is a no-op — present with ``present(sheet:)``, which supplies the actual value.
+	public func isPresentedBinding<Modal>(for type: Modal.Type) -> Binding<Bool> {
+		Binding(get: { self.sheet?.base is Modal }) { newValue in
+			if !newValue, self.sheet?.base is Modal { self.sheet = nil }
+		}
+	}
 }
 
 public extension Switchboard {
