@@ -104,12 +104,15 @@ import Foundation
 
 	/// Register `client` for lifecycle and state callbacks. The client's type name is recorded
 	/// for debugging. Returns a token you can ``Registration/cancel()`` later.
+	///
+	/// Registering does not start lifecycle delivery — system-event observation begins at
+	/// ``launched()``. Routes are deliverable immediately, so a claimant for launch-waking
+	/// notifications (a silent push, say) can safely register as early as the app's `init`.
 	@discardableResult
 	public func register(_ client: SwitchboardClient) -> Registration {
 		let registration = Registration()
 		registration.board = self
 		entries.append(Entry(registration: registration, name: String(describing: type(of: client)), client: client))
-		startObservingSystemEvents()
 		return registration
 	}
 
@@ -119,8 +122,12 @@ import Foundation
 	/// Any user-intent routes that arrived earlier are replayed, in order, once launch dispatch
 	/// begins (route execution may interleave with launch handlers — claimers should tolerate
 	/// warming state).
+	///
+	/// System-event observation also begins here — an activation during pre-launch setup
+	/// neither dispatches `.resume` nor consumes the day's `.resumeDaily`.
 	public func launched() {
 		hasLaunched = true
+		startObservingSystemEvents()
 		dispatch(.launch)
 		replayPendingRoutes()
 	}

@@ -16,6 +16,7 @@ import Testing
 
 	var launches = 0
 	var resumes = 0
+	var resumeDailies = 0
 	var signIns = 0
 	var signOuts = 0
 	var routesSeen = 0
@@ -28,6 +29,7 @@ import Testing
 
 	func onLaunch() async { launches += 1 }
 	func onResume() async { resumes += 1 }
+	func onResumeDaily() async { resumeDailies += 1 }
 	func onSignIn() async { signIns += 1 }
 	func onSignOut() async { signOuts += 1 }
 	func onStateChange(_ state: SwitchboardState, isActive: Bool) async { stateChanges.append((state, isActive)) }
@@ -176,5 +178,26 @@ import Testing
 		#expect(!board2.shouldFireResumeDailyAndMark(now: now))
 		board2.resumeDailyAfterHour = 0
 		#expect(board2.shouldFireResumeDailyAndMark(now: now))		// still fires once the hour passes
+	}
+
+	@Test func systemEventsIgnoredUntilLaunched() async {
+		let board = makeBoard()
+		board.resumeDailyAfterHour = 0
+		let client = RecordingClient()
+		board.register(client)
+
+		guard let resumeName = SwitchboardEvent.notificationMappings.first(where: { $0.event == .resume })?.name else { return }
+
+		// an activation during pre-launch setup: not observed, and the day's resumeDaily unburned
+		NotificationCenter.default.post(name: resumeName, object: nil)
+		try? await Task.sleep(for: .milliseconds(50))
+		#expect(client.resumes == 0)
+
+		board.launched()
+		#expect(await eventually { client.launches == 1 })
+
+		NotificationCenter.default.post(name: resumeName, object: nil)
+		#expect(await eventually { client.resumes == 1 })
+		#expect(await eventually { client.resumeDailies == 1 })		// would be 0 if the pre-launch activation had marked the day
 	}
 }
